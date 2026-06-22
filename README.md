@@ -107,7 +107,12 @@ python main.py
 
 ## Integrantes
 
-- *(completar con los nombres del grupo)*
+| Nombre | DNI |
+|---|---|
+| Aldana Benavent | 34.175.035 |
+| Emiliano Maydana | 46.108.946 |
+| Luciano Gabriel Zenobio | 44.598.717 |
+| Miguel Di Dio | 44.710.442 |
 
 ## Materia
 
