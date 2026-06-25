@@ -1,15 +1,13 @@
 """
 Simulador de Pedidos de Cafetería - Punto de entrada (consola).
-
-Este archivo SOLO se ocupa de la interfaz de consola y de orquestar las
-llamadas a las clases del dominio. No contiene lógica de negocio: esa vive
-en los módulos de `modelos/`. Esta separación (interfaz vs. dominio) hace el
-código más claro y testeable.
-
-Ejecutar con:  python main.py
+Solo interfaz: no contiene lógica de negocio (esa vive en modelos/).
+Ejecutar:  python main.py  (desde la carpeta raíz del proyecto)
 """
 from modelos.cafeteria import Cafeteria
-from modelos.extra import EXTRAS_DISPONIBLES
+from modelos.producto import Bebida, Comida
+from modelos.extra import VARIANTES_DISPONIBLES, AGREGADOS_DISPONIBLES
+from modelos.excepciones import CafeteriaError
+from utils.categorias import Categoria
 from utils.datos_iniciales import cargar_menu_inicial, cargar_mozos_iniciales
 
 
@@ -18,10 +16,7 @@ def pausar():
 
 
 def leer_numero(mensaje, entero=False):
-    """
-    Lee un número positivo desde consola, reintentando si la entrada es
-    inválida. (Patrón de validación robusta tomado del aporte del equipo.)
-    """
+    """Lee un número positivo, reintentando si la entrada es inválida."""
     while True:
         valor = input(mensaje).strip()
         try:
@@ -51,25 +46,33 @@ def mostrar_menu_productos(cafeteria):
     return indice
 
 
-def ofrecer_extras(cafeteria, producto, pedido):
-    """Si el producto admite extras, permite agregarlos (patrón Decorator)."""
-    if not producto.admite_extras():
-        return producto
+def _aplicar_opciones(producto, catalogo, titulo):
+    """Ofrece un catálogo de decoradores y los aplica (patrón Decorator)."""
     while True:
-        print("\n  ¿Agregar extra? (el patrón Decorator envuelve el producto)")
-        for k, (nombre, _) in EXTRAS_DISPONIBLES.items():
-            _, clase = EXTRAS_DISPONIBLES[k]
+        print(f"\n  {titulo}")
+        for k, (nombre, _) in catalogo.items():
             print(f"   {k}. {nombre}")
-        print("   0. Listo, sin más extras")
+        print("   0. Listo")
         op = input("  Opción: ").strip()
         if op == "0":
             break
-        if op in EXTRAS_DISPONIBLES:
-            _, clase_extra = EXTRAS_DISPONIBLES[op]
-            producto = clase_extra(producto)   # se envuelve con el decorador
+        if op in catalogo:
+            _, clase = catalogo[op]
+            producto = clase(producto)
             print(f"  Ahora: {producto.descripcion()} (${producto.precio:.0f})")
         else:
             print("  Opción inválida.")
+    return producto
+
+
+def ofrecer_extras(cafeteria, producto, pedido):
+    """Para bebidas: primero variante de preparación, luego agregados."""
+    if not producto.admite_extras():
+        return producto
+    producto = _aplicar_opciones(
+        producto, VARIANTES_DISPONIBLES, "¿Cómo se prepara? (variante)")
+    producto = _aplicar_opciones(
+        producto, AGREGADOS_DISPONIBLES, "¿Agregar algo? (extra)")
     return producto
 
 
@@ -88,12 +91,9 @@ def tomar_pedido(cafeteria):
         if producto_base is None:
             print("  Opción inválida.")
             continue
-        # Primero se verifica stock y se descuenta sobre el producto base.
-        # @verificar_stock frena acá si el producto está agotado.
         agregado = cafeteria.agregar_al_pedido(producto_base, pedido)
         if agregado is False:
-            continue  # estaba agotado: no se ofrecen extras ni se agrega item
-        # Si hay stock, se ofrecen extras (patrón Decorator) y se guarda como item.
+            continue
         producto_final = ofrecer_extras(cafeteria, producto_base, pedido)
         pedido.agregar_item(producto_final)
 
@@ -112,32 +112,61 @@ def administrar_menu(cafeteria):
         print("   2. Modificar precio de un producto")
         print("   3. Reponer stock")
         print("   4. Ver productos agotados")
+        print("   5. Cargar producto nuevo")
         print("   0. Volver")
         op = input("  Opción: ").strip()
-        if op == "1":
-            mostrar_menu_productos(cafeteria)
-            print(f"\n  Valor total del inventario: ${cafeteria.valor_inventario():.0f}")
-            pausar()
-        elif op == "2":
-            nombre = input("  Nombre del producto: ").strip()
-            nuevo = leer_numero("  Nuevo precio: ")
-            cafeteria.modificar_precio(nombre, nuevo)
-        elif op == "3":
-            nombre = input("  Nombre del producto: ").strip()
-            cant = leer_numero("  Cantidad a reponer: ", entero=True)
-            cafeteria.reponer_stock(nombre, cant)
-        elif op == "4":
-            agotados = cafeteria.productos_agotados()
-            if not agotados:
-                print("  No hay productos agotados.")
+        try:
+            if op == "1":
+                mostrar_menu_productos(cafeteria)
+                print(f"\n  Valor total del inventario: ${cafeteria.valor_inventario():.0f}")
+                pausar()
+            elif op == "2":
+                nombre = input("  Nombre del producto: ").strip()
+                nuevo = leer_numero("  Nuevo precio: ")
+                cafeteria.modificar_precio(nombre, nuevo)
+            elif op == "3":
+                nombre = input("  Nombre del producto: ").strip()
+                cant = leer_numero("  Cantidad a reponer: ", entero=True)
+                cafeteria.reponer_stock(nombre, cant)
+            elif op == "4":
+                agotados = cafeteria.productos_agotados()
+                if not agotados:
+                    print("  No hay productos agotados.")
+                else:
+                    for p in agotados:
+                        print(f"   - {p.nombre}")
+                pausar()
+            elif op == "5":
+                cargar_producto_nuevo(cafeteria)
+            elif op == "0":
+                break
             else:
-                for p in agotados:
-                    print(f"   - {p.nombre}")
-            pausar()
-        elif op == "0":
-            break
-        else:
-            print("  Opción inválida.")
+                print("  Opción inválida.")
+        except CafeteriaError as e:
+            print(f"  [!] {e}")
+
+
+def cargar_producto_nuevo(cafeteria):
+    """Permite al gerente sumar un producto nuevo (ej: café helado)."""
+    nombre = input("  Nombre del nuevo producto: ").strip()
+    if not nombre:
+        print("  El nombre no puede estar vacío.")
+        return
+    print("  Categoría:  1. Bebida   2. Salado   3. Dulce")
+    cat_op = input("  Opción: ").strip()
+    mapa = {"1": Categoria.BEBIDA, "2": Categoria.SALADO, "3": Categoria.DULCE}
+    if cat_op not in mapa:
+        print("  Categoría inválida.")
+        return
+    categoria = mapa[cat_op]
+    precio = leer_numero("  Precio: ")
+    stock = leer_numero("  Stock inicial: ", entero=True)
+    if categoria == Categoria.BEBIDA:
+        producto = Bebida(nombre, precio, stock=int(stock))
+    else:
+        producto = Comida(nombre, precio, categoria, stock=int(stock))
+    cafeteria.cargar_producto(producto)
+    print(f"  Producto '{nombre}' agregado al menú.")
 
 
 def ver_cierre(cafeteria):

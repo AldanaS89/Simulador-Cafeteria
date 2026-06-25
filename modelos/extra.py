@@ -1,37 +1,23 @@
 """
 Patrón de diseño DECORATOR (GoF) — patrón estructural.
+Implementado con CLASES. No confundir con los decoradores de función (@)
+de decoradores/validaciones.py.
 
-IMPORTANTE (para la defensa del TPI):
-Esto es el PATRÓN DE DISEÑO Decorator, implementado con CLASES. No tiene
-relación con la sintaxis @ de Python (esos son los decoradores de función,
-en decoradores/validaciones.py). Comparten el nombre "decorador" pero son
-conceptos distintos.
-
-Idea del patrón:
-- Extra hereda de Producto (misma interfaz: precio, descripcion).
-- Además, Extra GUARDA ADENTRO otro Producto (el que envuelve).
-- Al pedirle precio/descripcion, delega en el producto envuelto y le SUMA lo
-  suyo.
-- Como un Extra es un Producto, se puede envolver un Extra con otro Extra,
-  encadenando: Café -> ConLeche -> Grande.
-
-Ventaja frente a crear subclases (CafeConLecheGrande, CafeConCrema, ...):
-se evita la explosión de clases. Los extras se combinan en tiempo de
-ejecución.
+Hay dos tipos de decoradores que modelan cómo se pide un café:
+1. VARIANTES DE PREPARACIÓN: corto, largo, cortado, lágrima.
+2. AGREGADOS: leche, crema, dulce de leche, tamaño grande.
+Ejemplo: Café -> Cortado -> ConCrema (el precio y la descripción se acumulan).
 """
 from modelos.producto import Producto
 
 
 class Extra(Producto):
-    """
-    Decorador base. Envuelve un Producto y le agrega precio y descripción.
-    """
+    """Decorador base. Envuelve un Producto y le agrega precio y descripción."""
 
     def __init__(self, producto_envuelto, nombre_extra, precio_extra):
-        self._producto = producto_envuelto       # el objeto que se decora
+        self._producto = producto_envuelto
         self._nombre_extra = nombre_extra
         self._precio_extra = precio_extra
-        # Hereda categoría y banderas del producto envuelto.
         super().__init__(
             nombre=producto_envuelto.nombre,
             precio=producto_envuelto.precio,
@@ -43,18 +29,38 @@ class Extra(Producto):
 
     @property
     def precio(self):
-        # Precio del producto envuelto + el del extra (delegación + suma).
         return self._producto.precio + self._precio_extra
 
     def descripcion(self):
         return f"{self._producto.descripcion()} + {self._nombre_extra}"
 
     def admite_extras(self):
-        # Un producto decorado sigue admitiendo más extras (encadenamiento).
         return self._producto.admite_extras()
 
 
-# --- Extras concretos: cada uno define su nombre y su precio ---
+# --- VARIANTES DE PREPARACIÓN ---
+
+class Corto(Extra):
+    def __init__(self, producto):
+        super().__init__(producto, "corto", 0)
+
+
+class Largo(Extra):
+    def __init__(self, producto):
+        super().__init__(producto, "largo", 100)
+
+
+class Cortado(Extra):
+    def __init__(self, producto):
+        super().__init__(producto, "cortado", 150)
+
+
+class Lagrima(Extra):
+    def __init__(self, producto):
+        super().__init__(producto, "lágrima", 200)
+
+
+# --- AGREGADOS ---
 
 class ConLeche(Extra):
     def __init__(self, producto):
@@ -76,8 +82,14 @@ class Grande(Extra):
         super().__init__(producto, "tamaño grande", 400)
 
 
-# Catálogo de extras disponibles, para ofrecerlos desde el menú de consola.
-EXTRAS_DISPONIBLES = {
+VARIANTES_DISPONIBLES = {
+    "1": ("Corto", Corto),
+    "2": ("Largo", Largo),
+    "3": ("Cortado", Cortado),
+    "4": ("Lágrima", Lagrima),
+}
+
+AGREGADOS_DISPONIBLES = {
     "1": ("Leche", ConLeche),
     "2": ("Crema", ConCrema),
     "3": ("Dulce de leche", ConDulceDeLeche),
