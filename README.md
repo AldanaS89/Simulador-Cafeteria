@@ -290,7 +290,7 @@ python main.py
 ### Datos de prueba ya cargados
 
 - **Mozos:** Carlos, María, José — **clave:** `1234`
-- **Menú:** 15 productos repartidos en Bebidas, Salado y Dulce.
+- **Menú:** 14 productos repartidos en Bebidas, Salado y Dulce.
 
 ### Flujo sugerido para la demostración
 
